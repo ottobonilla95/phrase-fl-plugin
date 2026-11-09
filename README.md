@@ -1,50 +1,62 @@
-# Phrase
+# FL Studio music assistant
 
-An Apple Silicon VST3 instrument for composing MIDI through chat in FL Studio. Early local prototype, named Phrase for now.
+Project restart. The previous Phrase MIDI prototype is retired and preserved in
+[`archive/phrase-prototype`](archive/phrase-prototype/README.md) and Git tag
+`prototype-v0.1`. The replacement is being defined; it is not implemented yet.
 
-## Try it
+## Product
 
-1. Build with `./scripts/build.sh` (requires Apple's Command Line Tools, `uv`, and internet on the first build).
-2. Install with `./scripts/install.sh`.
-3. In FL Studio, open **Options → Manage plugins**, scan for plugins and add **Phrase** as an instrument.
-4. Open **Connect AI**, paste your OpenAI API key and select a model supporting Responses structured outputs. Default: `gpt-4.1-mini`.
-5. Ask for a musical idea, then use **Preview all**. Select Melody, Chords, Bass or Drums and drag its MIDI into the Piano Roll of your desired FL instrument. Clicking the drag button opens a MIDI save dialog instead.
+A conversational assistant inside FL Studio that helps the musician turn ideas
+into a song by taking actions in the actual FL project.
 
-Use **Change → Selected part only** to revise the highlighted part while keeping all other notes, tempo, key and bar count exactly as they were. Choose **All parts** when you want to change the overall idea. **New idea** starts a clean conversation and empty idea; the previous notes remain available with Undo. During generation, the compose button becomes **Cancel request**. Cancelling or a failed request restores your prompt so you can edit and retry.
+The user can describe a musical result without knowing the instrument plugin,
+preset, chord names or synthesis terminology. The assistant chooses among
+supported installed instruments, creates editable musical parts, and helps the
+user explore how they sound together.
 
-You can also open `build/Phrase_artefacts/Release/Standalone/Phrase.app` without FL Studio. Use **Load example** to try the UI, audio preview and MIDI export without an API key. The example is fixed demo music, not AI generation.
+Example conversation:
 
-## What works in this prototype
+1. "Create a mellow piano melody in C major."
+2. "Add a dreamy synth with chords that fit."
+3. "Make the synth warmer and change the final chord."
+4. "Keep the piano as it is and add a bassline."
 
-- Chat generates or revises an idea with four separate parts. Single-part revisions enforce preservation of all other musical parts in code.
-- Context includes the current idea's notes, key, tempo and length. Edits are instructed to preserve parts you did not ask to change.
-- Note validation: 1–16 bars, 4/4, 30–300 BPM, up to 512 notes per part.
-- Basic internal sounds for audio preview, plus MIDI output during preview. Preview runs independently of FL's transport and loops at the idea's own tempo.
-- Single-part MIDI drag/export and multitrack export with tempo, bar length and General MIDI drum channel 10.
-- MIDI import into the selected part for revising your existing music (all note tracks in the chosen file are merged into that part; tempo stays at the current idea's setting).
-- Undo of the last 20 musical changes during the current plugin session.
-- Current idea, chat display and model selection are saved with plugin state; undo history is not.
-- Plugin updates back up the previous installed bundle under `~/Library/Application Support/Phrase/Backups/`, outside FL Studio's scan paths.
+## Required behavior
 
-## Boundaries
+- Select and load a supported installed instrument plugin in an FL channel.
+- Choose or adjust its sound through controls that have been verified for that plugin.
+- Create notes in FL's real Piano Roll and play them through that instrument.
+- Keep separate context for each instrument, including its notes and supported sound settings.
+- Apply follow-up requests to the intended part while preserving unrelated parts.
+- Offer audible alternatives for sounds, harmony and voicings in the song's context.
+- Report actions only after FL confirms that they succeeded.
+- Provide a way to undo project edits.
 
-This version does not inspect the open FL project, directly insert notes into other channels, arrange the Playlist, choose instruments, hear existing audio, or control mixer effects. You transfer generated MIDI to FL yourself. Imported MIDI is limited to PPQ timing and 16 bars. Preview sounds are intended for checking notes and rhythm, not finished production. Use your own FL instruments and drum mapping for final sounds.
+Online AI is the agreed starting point. Credentials must be kept out of the
+repository and FL project files. Preview quality must be assessed using the
+actual instrument audio.
 
-The API key is masked and held only in plugin memory. It is never embedded in the binary, written to a settings file, or serialized into FL projects. Re-enter it after reopening the plugin instance. Prompts and current MIDI note data are sent directly over HTTPS to OpenAI; API calls set `store: false`. Your OpenAI API account's usage charges and data policies apply. The model field is editable. No API key is needed to build or run offline tests.
+## First technical checkpoint
 
-Requests run on a background thread. Closing the editor cancels an in-flight request. Generation failures preserve the previous musical idea.
+Prove the control path on this Mac before building a replacement chat interface:
 
-## Build and checks
+1. Choose and load one installed piano instrument through the intended integration.
+2. Create a C-major melody as editable notes in that instrument's FL Piano Roll.
+3. Play the result through FL.
+4. Change the melody and reverse the edit.
+5. Repeat the instrument-loading and sound-control checks with one installed synth.
 
-JUCE 8.0.12 is pinned and downloaded by CMake into `build/`. Build tooling is isolated in `.tools/`. The C++ tests cover musical validation, JSON round trips, MIDI timing/tempo/channel export, import and API envelope handling. Tests use synthetic responses and do not call the online API.
+After these checks, connect natural-language requests and verify the complete
+request → project change → audible result → revision flow.
 
-Source: `Source/`. Tests: `Tests/`. Compiled artifacts: `build/Phrase_artefacts/Release/`.
+Support for other plugins, multiple simultaneous parts, arrangement and mixing
+must expand from demonstrated control capabilities. The integration mechanism,
+initial supported plugins and setup workflow remain to be validated. A VST3
+window alone does not establish the required project-control capabilities.
 
-Verified on this Mac on 2026-11-09: Apple Silicon Release builds of VST3 and Standalone; both CTest suites passed (38 music/API checks plus audio/state checks). FL Studio 2026 v26.1.5 scanned Phrase with status `ok`, loaded the updated editor with selective revision controls, and activated the local example and preview control. The plugin is installed at `/Users/otto/Library/Audio/Plug-Ins/VST3/Phrase.vst3`. Live online generation requires your API key and has not been tested. Cross-window MIDI drag into an FL instrument has not yet been checked manually; MIDI file export and reimport are covered by the offline tests.
+## Archived prototype
 
-## References and dependencies
-
-- [OpenAI structured outputs](https://developers.openai.com/api/docs/guides/structured-outputs?api-mode=responses)
-- [OpenAI GPT-4.1 mini](https://developers.openai.com/api/docs/models/gpt-4.1-mini)
-- [JUCE](https://github.com/juce-framework/JUCE/tree/8.0.12) — dependency license is included in the fetched source at `build/_deps/juce-src/LICENSE.md`. Review JUCE's distribution terms before publishing this plugin.
-- [FL Studio Piano Roll scripting](https://www.image-line.com/fl-studio-learning/fl-studio-online-manual/html/pianoroll_scripting_api.htm) — potential next integration stage.
+The archived code provides a chat UI, generated MIDI, basic internal preview and
+manual MIDI transfer. It does not select FL instruments or directly edit the
+host project. Its original checks and documentation apply only to that prototype.
+The project restart does not remove the already installed Phrase bundle.

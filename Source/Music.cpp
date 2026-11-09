@@ -56,6 +56,17 @@ bool Song::fromJson(const juce::var& v, Song& out, juce::String& error) {
     out = std::move(s); error.clear(); return true;
 }
 bool Song::hasNotes() const { for (const auto& p : parts) if (!p.empty()) return true; return false; }
+bool applyRevision(const Song& current, const Song& proposed, int part, Song& result, juce::String& error) {
+    if (part < -1 || part > 3) { error = "Choose all parts or a single musical part."; return false; }
+    auto merged = proposed;
+    if (part >= 0) {
+        merged = current;
+        merged.parts[(size_t)part] = proposed.parts[(size_t)part];
+        merged.message = proposed.message;
+    }
+    // Revalidate after merging: selected-part revisions cannot extend the existing idea.
+    return Song::fromJson(merged.toJson(), result, error);
+}
 Song Song::demo() {
     Song s; s.title = "After hours"; s.bpm = 92;
     s.message = "Example idea loaded locally. Preview it, drag a part into FL Studio, or connect your API key to make something new.";

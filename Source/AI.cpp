@@ -1,7 +1,7 @@
 #include "AI.h"
 
 namespace phrase {
-juce::var makeRequest(const Song& song, const juce::String& prompt, const juce::String& model) {
+juce::var makeRequest(const Song& song, const juce::String& prompt, const juce::String& model, int part) {
     const auto schema = juce::JSON::parse(R"json({
       "type":"object","additionalProperties":false,
       "properties":{
@@ -28,8 +28,11 @@ juce::var makeRequest(const Song& song, const juce::String& prompt, const juce::
         "musical rests, variation, playable voicings and intentional bass. Follow genre, key and groove requests. "
         "Write a short message describing what you changed. Do not claim you changed the FL Studio project: "
         "the result lives in this plugin until the user transfers MIDI. Never claim to hear audio or see the host project. ";
+    const auto scope = part >= 0 && part < 4
+        ? "Edit ONLY the " + partNames[(size_t)part].toLowerCase() + " track. Keep the current key, tempo, bar count and all other tracks unchanged. "
+        : juce::String("The user may request changes to any part and the overall idea. ");
     return object({{"model", model}, {"store", false}, {"max_output_tokens", 24000},
-        {"instructions", instructions},
+        {"instructions", instructions + scope},
         {"input", "Current idea:\n" + juce::JSON::toString(song.toJson(), true) + "\nUser request:\n" + prompt},
         {"text", object({{"format", object({{"type", "json_schema"}, {"name", "musical_idea"}, {"strict", true}, {"schema", schema}})}})}});
 }

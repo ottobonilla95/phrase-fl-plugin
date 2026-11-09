@@ -23,22 +23,27 @@ private:
         std::function<void()> onDrag;
         void mouseDrag(const juce::MouseEvent& e) override { if (!dragged && e.getDistanceFromDragStart() > 6) { dragged = true; if (onDrag) onDrag(); } }
         void mouseDown(const juce::MouseEvent& e) override { dragged = false; TextButton::mouseDown(e); }
+        void mouseUp(const juce::MouseEvent& e) override { if (dragged) setState(juce::Button::buttonNormal); else TextButton::mouseUp(e); }
     private: bool dragged = false;
     };
     PhraseProcessor& processor;
     juce::LookAndFeel_V4 look;
     Roll roll;
     juce::TextEditor chat, prompt, key, model;
-    juce::Label status, connectionLabel, modelLabel;
+    juce::Label status, connectionLabel, modelLabel, scopeLabel;
+    juce::ComboBox editScope;
     juce::TextButton send {"Create idea"}, preview {"Preview"}, undo {"Undo"}, example {"Load example"};
     juce::TextButton settings {"Connection"}, exportAll {"Export all"}, import {"Import MIDI"};
     juce::TextButton closeSettings {"Done"};
+    juce::TextButton newIdea {"New idea"};
     std::array<juce::TextButton, 4> tabs;
     DragButton drag;
     std::unique_ptr<phrase::AIWorker> worker;
     std::unique_ptr<juce::FileChooser> chooser;
     juce::File exportDir;
     bool showingSettings = false, busy = false;
+    juce::String pendingPrompt;
+    juce::uint64 requestSerial = 0;
     void timerCallback() override;
     void generate();
     void updateState();
@@ -47,5 +52,7 @@ private:
     void exportMidi(bool all, bool externalDrag);
     void importMidi();
     void setBusy(bool);
+    void resetIdea();
+    void cancelRequest();
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(PhraseEditor)
 };

@@ -18,5 +18,6 @@ struct Song {
 inline const std::array<juce::String, 4> partNames { "Melody", "Chords", "Bass", "Drums" };
 bool writeMidi(const Song&, int part, const juce::File&, juce::String& error);
 bool readMidi(const juce::File&, int part, Song&, juce::String& error);
+bool applyRevision(const Song& current, const Song& proposed, int part, Song& result, juce::String& error);
 juce::var object(std::initializer_list<std::pair<juce::String, juce::var>> values);
 }

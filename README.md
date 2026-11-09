@@ -7,14 +7,16 @@ An Apple Silicon VST3 instrument for composing MIDI through chat in FL Studio. E
 1. Build with `./scripts/build.sh` (requires Apple's Command Line Tools, `uv`, and internet on the first build).
 2. Install with `./scripts/install.sh`.
 3. In FL Studio, open **Options → Manage plugins**, scan for plugins and add **Phrase** as an instrument.
-4. Open **Connection**, paste your OpenAI API key and select a model supporting Responses structured outputs. Default: `gpt-4.1-mini`.
-5. Ask for a musical idea, then use **Preview**. Select Melody, Chords, Bass or Drums and drag its MIDI into the Piano Roll of your desired FL instrument. Clicking the drag button opens a MIDI save dialog instead.
+4. Open **Connect AI**, paste your OpenAI API key and select a model supporting Responses structured outputs. Default: `gpt-4.1-mini`.
+5. Ask for a musical idea, then use **Preview all**. Select Melody, Chords, Bass or Drums and drag its MIDI into the Piano Roll of your desired FL instrument. Clicking the drag button opens a MIDI save dialog instead.
+
+Use **Change → Selected part only** to revise the highlighted part while keeping all other notes, tempo, key and bar count exactly as they were. Choose **All parts** when you want to change the overall idea. **New idea** starts a clean conversation and empty idea; the previous notes remain available with Undo. During generation, the compose button becomes **Cancel request**. Cancelling or a failed request restores your prompt so you can edit and retry.
 
 You can also open `build/Phrase_artefacts/Release/Standalone/Phrase.app` without FL Studio. Use **Load example** to try the UI, audio preview and MIDI export without an API key. The example is fixed demo music, not AI generation.
 
 ## What works in this prototype
 
-- Chat generates or revises a complete idea with four separate parts.
+- Chat generates or revises an idea with four separate parts. Single-part revisions enforce preservation of all other musical parts in code.
 - Context includes the current idea's notes, key, tempo and length. Edits are instructed to preserve parts you did not ask to change.
 - Note validation: 1–16 bars, 4/4, 30–300 BPM, up to 512 notes per part.
 - Basic internal sounds for audio preview, plus MIDI output during preview. Preview runs independently of FL's transport and loops at the idea's own tempo.
@@ -22,6 +24,7 @@ You can also open `build/Phrase_artefacts/Release/Standalone/Phrase.app` without
 - MIDI import into the selected part for revising your existing music (all note tracks in the chosen file are merged into that part; tempo stays at the current idea's setting).
 - Undo of the last 20 musical changes during the current plugin session.
 - Current idea, chat display and model selection are saved with plugin state; undo history is not.
+- Plugin updates back up the previous installed bundle under `~/Library/Application Support/Phrase/Backups/`, outside FL Studio's scan paths.
 
 ## Boundaries
 
@@ -37,7 +40,7 @@ JUCE 8.0.12 is pinned and downloaded by CMake into `build/`. Build tooling is is
 
 Source: `Source/`. Tests: `Tests/`. Compiled artifacts: `build/Phrase_artefacts/Release/`.
 
-Verified on this Mac on 2026-11-09: Apple Silicon Release builds of VST3 and Standalone; both CTest suites passed (27 music/API checks plus audio/state checks). FL Studio 2026 v26.1.5 scanned Phrase with status `ok`, loaded its editor, and activated the local example and preview control. The plugin is installed at `/Users/otto/Library/Audio/Plug-Ins/VST3/Phrase.vst3`. Live online generation requires your API key and has not been tested. Cross-window MIDI drag into an FL instrument has not yet been checked manually; MIDI file export and reimport are covered by the offline tests.
+Verified on this Mac on 2026-11-09: Apple Silicon Release builds of VST3 and Standalone; both CTest suites passed (38 music/API checks plus audio/state checks). FL Studio 2026 v26.1.5 scanned Phrase with status `ok`, loaded the updated editor with selective revision controls, and activated the local example and preview control. The plugin is installed at `/Users/otto/Library/Audio/Plug-Ins/VST3/Phrase.vst3`. Live online generation requires your API key and has not been tested. Cross-window MIDI drag into an FL instrument has not yet been checked manually; MIDI file export and reimport are covered by the offline tests.
 
 ## References and dependencies
 

@@ -9,8 +9,10 @@ if [[ ! -d "$source_plugin" ]]; then
 fi
 mkdir -p "$target_root"
 if [[ -e "$target_root/Phrase.vst3" ]]; then
-    backup_path="$target_root/Phrase.backup.$(date +%Y%m%d-%H%M%S).vst3"
-    mv "$target_root/Phrase.vst3" "$backup_path"
+    backup_root="$HOME/Library/Application Support/Phrase/Backups"
+    mkdir -p "$backup_root"
+    backup_folder="$(mktemp -d "$backup_root/install-XXXXXXXX")"
+    mv "$target_root/Phrase.vst3" "$backup_folder/Phrase.vst3"
 fi
 ditto "$source_plugin" "$target_root/Phrase.vst3"
 codesign --force --deep --sign - "$target_root/Phrase.vst3"

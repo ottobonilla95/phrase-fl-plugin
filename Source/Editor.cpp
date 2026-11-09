@@ -19,7 +19,10 @@ PhraseEditor::PhraseEditor(PhraseProcessor& p) : AudioProcessorEditor(p), proces
     look.setColour(juce::TextEditor::highlightColourId, line.brighter(0.3f));
     look.setColour(juce::CaretComponent::caretColourId, ink);
     setLookAndFeel(&look);
-    for (auto* c : std::initializer_list<juce::Component*>{ &chat, &prompt, &key, &model, &status, &connectionLabel, &modelLabel,
+    look.setColour(juce::ComboBox::backgroundColourId, panel);
+    look.setColour(juce::ComboBox::textColourId, ink);
+    look.setColour(juce::ComboBox::outlineColourId, line);
+    for (auto* c : std::initializer_list<juce::Component*>{ &chat, &prompt, &key, &model, &status, &connectionLabel, &modelLabel, &scopeLabel, &editScope, &newIdea,
          &send, &preview, &undo, &example, &settings, &exportAll, &import, &closeSettings, &drag, &roll }) addAndMakeVisible(c);
     for (int i = 0; i < 4; ++i) {
         auto& tab = tabs[(size_t)i]; addAndMakeVisible(tab); tab.setButtonText(phrase::partNames[(size_t)i]);
@@ -36,14 +39,18 @@ PhraseEditor::PhraseEditor(PhraseProcessor& p) : AudioProcessorEditor(p), proces
     prompt.setInputRestrictions(4000);
     key.setPasswordCharacter(0x2022); key.setText(processor.apiKey, false);
     key.setTextToShowWhenEmpty("Paste your OpenAI API key", muted); key.setInputRestrictions(512);
-    key.onTextChange = [this] { processor.apiKey = key.getText().trim(); };
+    key.onTextChange = [this] { processor.apiKey = key.getText().trim(); updateState(); };
     model.setText(processor.model, false); model.setInputRestrictions(100);
     model.onTextChange = [this] { processor.model = model.getText().trim(); };
     connectionLabel.setText("OpenAI API key / kept in memory for this session", juce::dontSendNotification);
     modelLabel.setText("Model", juce::dontSendNotification);
-    for (auto* l : {&status, &connectionLabel, &modelLabel}) l->setColour(juce::Label::textColourId, muted);
+    scopeLabel.setText("Change", juce::dontSendNotification);
+    editScope.addItem("All parts", 1); editScope.addItem("Selected part only", 2);
+    editScope.setSelectedId(1); editScope.setTooltip("Selected part only keeps the other notes, tempo, key and idea length unchanged.");
+    for (auto* l : {&status, &connectionLabel, &modelLabel, &scopeLabel}) l->setColour(juce::Label::textColourId, muted);
     send.setColour(juce::TextButton::buttonColourId, colours[0]); send.setColour(juce::TextButton::textColourOffId, bg);
     send.onClick = [this] { generate(); };
+    newIdea.onClick = [this] { resetIdea(); };
     preview.onClick = [this] { processor.togglePreview(); updateState(); };
     undo.onClick = [this] { if (processor.undo()) { append("Phrase", "Restored the previous idea."); updateState(); } };
     example.onClick = [this] { auto s = phrase::Song::demo(); processor.setSong(s); append("Local example", s.message); updateState(); };
@@ -57,6 +64,7 @@ PhraseEditor::PhraseEditor(PhraseProcessor& p) : AudioProcessorEditor(p), proces
     if (processor.conversation.isEmpty()) append("Phrase", "What are we making?\nAsk for a melody, chords, bass or drums. Then refine the idea in conversation.\n\nTry: \"Make a 4-bar mellow house idea in A minor at 120 BPM.\"\n\nConnect your API key to begin, or load the local example to try preview and MIDI transfer.");
     else chat.setText(processor.conversation, false);
     showConnection(false); setSize(1080, 740); setResizable(true, false); setResizeLimits(980, 680, 1600, 1100);
+    status.setText("Connect AI to compose, or try the example.", juce::dontSendNotification);
     updateState(); startTimerHz(20);
 }
 PhraseEditor::~PhraseEditor() { stopTimer(); worker.reset(); processor.stopPreview(); setLookAndFeel(nullptr); }
@@ -84,7 +92,9 @@ void PhraseEditor::paint(juce::Graphics& g) {
 void PhraseEditor::resized() {
     const int w = getWidth(), h = getHeight(), split = (int)(w * 0.43), right = w - split - 48;
     settings.setBounds(w - 145, 31, 121, 34);
-    chat.setBounds(24, 154, split - 48, h - 350);
+    newIdea.setBounds(w - 255, 31, 100, 34);
+    chat.setBounds(24, 154, split - 48, h - 390);
+    scopeLabel.setBounds(24, h - 223, 70, 28); editScope.setBounds(96, h - 223, split - 120, 28);
     prompt.setBounds(24, h - 182, split - 48, 90);
     send.setBounds(24, h - 78, split - 190, 38); example.setBounds(split - 154, h - 78, 130, 38);
     status.setBounds(24, h - 35, split - 48, 24);
@@ -133,38 +143,58 @@ void PhraseEditor::showConnection(bool show) {
     repaint();
 }
 void PhraseEditor::setBusy(bool value) {
-    busy = value; send.setEnabled(!busy); example.setEnabled(!busy); undo.setEnabled(!busy && processor.canUndo()); import.setEnabled(!busy);
-    send.setButtonText(busy ? "Composing..." : "Create / revise"); prompt.setReadOnly(busy);
+    busy = value; example.setEnabled(!busy); undo.setEnabled(!busy && processor.canUndo()); import.setEnabled(!busy);
+    newIdea.setEnabled(!busy); editScope.setEnabled(!busy);
+    send.setButtonText(busy ? "Cancel request" : "Create / revise"); prompt.setReadOnly(busy);
+}
+void PhraseEditor::resetIdea() {
+    processor.setSong(phrase::Song()); chat.clear(); processor.conversation.clear(); prompt.clear();
+    editScope.setSelectedId(1);
+    append("Phrase", "Describe a melody, chords, bass or drums. Preview the result, ask for changes, then drag each part to your FL instrument.\n\nTry: Make a dark 4-bar piano melody in A minor.");
+    status.setText("New idea. Previous notes are available with Undo.", juce::dontSendNotification);
+    updateState(); prompt.grabKeyboardFocus();
+}
+void PhraseEditor::cancelRequest() {
+    ++requestSerial; worker.reset(); setBusy(false); prompt.setText(pendingPrompt, false);
+    status.setText("Cancelled. Your previous idea is intact.", juce::dontSendNotification);
+    updateState();
 }
 void PhraseEditor::generate() {
-    if (busy) return;
+    if (busy) { cancelRequest(); return; }
     const auto text = prompt.getText().trim(); if (text.isEmpty()) { status.setText("Describe what you want to make first.", juce::dontSendNotification); return; }
     if (processor.apiKey.isEmpty() || processor.model.isEmpty()) { showConnection(true); status.setText("Add an API key and model to connect.", juce::dontSendNotification); key.grabKeyboardFocus(); return; }
-    processor.stopPreview(); append("You", text); prompt.clear(); setBusy(true); status.setText("Composing your idea...", juce::dontSendNotification);
+    processor.stopPreview(); append("You", text); pendingPrompt = text; prompt.clear(); setBusy(true); status.setText("Composing your idea...", juce::dontSendNotification);
+    const auto original = processor.getSong(); const int part = editScope.getSelectedId() == 2 ? roll.part : -1;
+    const auto serial = ++requestSerial;
     auto safe = juce::Component::SafePointer<PhraseEditor>(this);
-    worker = std::make_unique<phrase::AIWorker>(processor.apiKey, phrase::makeRequest(processor.getSong(), text, processor.model),
-        [safe](bool ok, phrase::Song s, juce::String error) {
-            if (!safe) return;
+    worker = std::make_unique<phrase::AIWorker>(processor.apiKey, phrase::makeRequest(original, text, processor.model, part),
+        [safe, original, part, serial](bool ok, phrase::Song s, juce::String error) {
+            if (!safe || safe->requestSerial != serial) return;
             safe->setBusy(false);
-            if (ok) { safe->processor.setSong(s); safe->append("Phrase", s.message); safe->status.setText("Idea ready. Preview or drag a part into FL Studio.", juce::dontSendNotification); }
-            else { safe->append("Connection", error); safe->status.setText("Request failed. Your previous idea is intact.", juce::dontSendNotification); }
+            phrase::Song applied;
+            if (ok) ok = phrase::applyRevision(original, s, part, applied, error);
+            if (ok) { safe->processor.setSong(applied); safe->append("Phrase", applied.message); safe->status.setText("Ready. Preview or drag MIDI into FL Studio.", juce::dontSendNotification); }
+            else { safe->append("Request", error); safe->prompt.setText(safe->pendingPrompt, false); safe->status.setText("Request failed. Edit your prompt and retry.", juce::dontSendNotification); }
             safe->updateState();
         });
 }
 void PhraseEditor::updateState() {
     const auto s = processor.getSong(); preview.setEnabled(s.hasNotes()); undo.setEnabled(!busy && processor.canUndo());
-    preview.setButtonText(processor.isPreviewing() ? "Stop" : "Preview"); exportAll.setEnabled(s.hasNotes());
+    settings.setButtonText(processor.apiKey.isEmpty() ? "Connect AI" : "Connection");
+    send.setButtonText(busy ? "Cancel request" : s.hasNotes() ? "Revise idea" : "Create idea");
+    preview.setButtonText(processor.isPreviewing() ? "Stop" : "Preview all"); exportAll.setEnabled(s.hasNotes());
     drag.setEnabled(!s.parts[(size_t)roll.part].empty()); drag.setButtonText("Drag " + phrase::partNames[(size_t)roll.part].toLowerCase() + " MIDI into FL Studio");
     roll.repaint(); repaint();
 }
-void PhraseEditor::timerCallback() { preview.setButtonText(processor.isPreviewing() ? "Stop" : "Preview"); roll.repaint(); }
+void PhraseEditor::timerCallback() { preview.setButtonText(processor.isPreviewing() ? "Stop" : "Preview all"); roll.repaint(); }
 void PhraseEditor::exportMidi(bool all, bool externalDrag) {
     auto s = processor.getSong(); const int p = all ? -1 : roll.part;
     auto name = juce::File::createLegalFileName(s.title + " - " + (all ? "All parts" : phrase::partNames[(size_t)p])) + ".mid";
     if (externalDrag) {
         auto file = exportDir.getNonexistentChildFile(name, "", false); juce::String error;
         if (!phrase::writeMidi(s, p, file, error)) { status.setText(error, juce::dontSendNotification); return; }
-        juce::DragAndDropContainer::performExternalDragDropOfFiles({file.getFullPathName()}, false, this);
+        if (!juce::DragAndDropContainer::performExternalDragDropOfFiles({file.getFullPathName()}, false, this))
+            status.setText("Drag could not start. Click to save MIDI instead.", juce::dontSendNotification);
     } else {
         chooser = std::make_unique<juce::FileChooser>("Export MIDI", juce::File::getSpecialLocation(juce::File::userDocumentsDirectory).getChildFile(name), "*.mid");
         auto safe = juce::Component::SafePointer<PhraseEditor>(this);

@@ -3,7 +3,7 @@
 #include <juce_events/juce_events.h>
 
 namespace phrase {
-juce::var makeRequest(const Song&, const juce::String& prompt, const juce::String& model);
+juce::var makeRequest(const Song&, const juce::String& prompt, const juce::String& model, int part = -1);
 bool parseResponse(const juce::var&, Song&, juce::String& error);
 class AIWorker : public juce::Thread {
 public:

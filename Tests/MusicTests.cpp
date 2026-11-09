@@ -43,6 +43,22 @@ int main() {
         check(req["store"].isBool() && !(bool)req["store"], "API storage disabled");
         check((bool)req["text"]["format"]["strict"] && req["text"]["format"]["schema"].isObject(), "strict output schema");
         check(req["input"].toString().contains("Change only the melody"), "user request included");
+        auto selectedRequest = phrase::makeRequest(demo, "Make it more syncopated", "gpt-4.1-mini", 2);
+        check(selectedRequest["instructions"].toString().contains("Edit ONLY the bass track"), "selected part included in request");
+        auto proposed = demo; proposed.bpm = 155; proposed.key = "C major"; proposed.bars = 8;
+        for (auto& part : proposed.parts) for (auto& note : part) note.pitch += 1;
+        phrase::Song merged;
+        check(phrase::applyRevision(demo, proposed, 0, merged, error), "apply selected melody revision");
+        check(merged.parts[0][0].pitch == proposed.parts[0][0].pitch, "selected notes updated");
+        auto beforeTracks = demo.toJson()["tracks"], afterTracks = merged.toJson()["tracks"];
+        for (int p = 1; p < 4; ++p)
+            check(juce::JSON::toString(beforeTracks[p]) == juce::JSON::toString(afterTracks[p]), "untouched part preserved exactly");
+        check(merged.bpm == demo.bpm && merged.bars == demo.bars && merged.key == demo.key, "single part keeps tempo key length");
+        proposed.parts[0][0].start = 20;
+        check(!phrase::applyRevision(demo, proposed, 0, merged, error), "reject selected notes beyond original length");
+        check(merged.parts[0][0].start == demo.parts[0][0].start, "failed revision does not change destination");
+        check(phrase::applyRevision(demo, proposed, -1, merged, error) && merged.bpm == 155 && merged.bars == 8, "all parts revision allows overall changes");
+        check(!phrase::applyRevision(demo, proposed, 4, merged, error), "reject invalid revision target");
         juce::Array<juce::var> content { phrase::object({{"type", "output_text"}, {"text", juce::JSON::toString(demo.toJson())}}) };
         juce::Array<juce::var> output { phrase::object({{"content", content}}) };
         auto response = phrase::object({{"status", "completed"}, {"output", output}});

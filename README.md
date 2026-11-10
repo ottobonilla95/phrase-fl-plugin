@@ -1,8 +1,7 @@
 # FL Studio music assistant
 
-Project restart. The previous Phrase MIDI prototype is retired and preserved in
-[`archive/phrase-prototype`](archive/phrase-prototype/README.md) and Git tag
-`prototype-v0.1`. The replacement is being defined; it is not implemented yet.
+Development in progress. There is no installable or usable replacement plugin yet.
+The control bridge is experimental and has not passed the live FL Studio checkpoint.
 
 ## Product
 
@@ -54,9 +53,19 @@ must expand from demonstrated control capabilities. The integration mechanism,
 initial supported plugins and setup workflow remain to be validated. A VST3
 window alone does not establish the required project-control capabilities.
 
-## Archived prototype
+## Current test availability
 
-The archived code provides a chat UI, generated MIDI, basic internal preview and
-manual MIDI transfer. It does not select FL instruments or directly edit the
-host project. Its original checks and documentation apply only to that prototype.
-The project restart does not remove the already installed Phrase bundle.
+There is currently no new plugin to open in FL Studio. Do not use the experimental
+bridge scripts on a music project: direct note editing, result verification, undo
+and synth control still need live validation. The AI chat is not implemented.
+
+Once a build passes that checkpoint, its test instructions must include the exact
+installed plugin name, how to open it in FL, AI connection setup, and these checks:
+
+1. Ask: "Create a mellow piano melody in C major." Verify a piano channel and editable notes appear in FL.
+2. Play the pattern through FL.
+3. Ask: "Change the final two notes." Verify only that piano part changes.
+4. Undo the edit and verify the original notes return.
+5. Ask: "Add a warm synth with matching chords." Verify a separate synth channel, chord notes and audible playback.
+
+These are release acceptance checks, not features available in the current source.
